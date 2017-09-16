@@ -22,11 +22,19 @@ $(function () {
 
     var Discussion = Backbone.Model.extend({});
 
-    window.MarkerCollection = Backbone.Collection.extend({
+    window.MarkerCollection = Backbone.PageableCollection.extend({
         url: "/markers",
 
-        parse: function (response, options) {
+        state: {
+            pageSize: ENTRIES_PER_PAGE
+        },
+
+        parseRecords: function (response) {
             return response.markers;
+        },
+
+        parseState: function (response) {
+            return response.pagination;
         }
     });
 
@@ -134,7 +142,7 @@ $(function () {
             }
            Backbone.history.navigate(Backbone.history.fragment, false);
            // Backbone.history.navigate(url, true);
-           window.history.pushState('','','/')
+           window.history.pushState('','','/');
         },
         clusterMode: function () {
             return this.map.zoom < MINIMAL_ZOOM;
@@ -167,7 +175,7 @@ $(function () {
                 this.clusters.fetch({
                     data: $.param(params),
                     reset: reset,
-                    success: this.reloadSidebar.bind(this)
+                    success: this.markersFetched(this)
                 });
             } else {
                 this.clearClustersFromMap();
@@ -178,10 +186,28 @@ $(function () {
 
                 this.clearClustersFromMap();
 
-                this.markers.fetch({
-                    data: $.param(params),
+                this.markers.getFirstPage({
+                    data: params,
                     reset: reset,
-                    success: this.reloadSidebar.bind(this)
+                    success: this.markersFetched.bind(this, params, reset)
+                });
+            }
+        },
+        markersFetched: function(params, reset) {
+            this.reloadSidebar(this);
+            if (this.markers.hasNextPage()) {
+                delete params.page;
+                delete params.per_page;
+                delete params.total_entries;
+                delete params.total_pages;
+
+                if (!_.isEqual(params, this.buildMarkersParams())) {
+                    return;
+                }
+
+                this.markers.getNextPage({
+                    data: params,
+                    success: this.markersFetched.bind(this, params, reset)
                 });
             }
         },
@@ -956,13 +982,13 @@ $(function () {
             this.fetchMarkers();
         },
         loadFilter: function() {
-            if ($("#checkbox-discussions").is(":checked")) { this.show_discussions='1' } else { this.show_discussions='' }
-            if ($("#checkbox-accidents").is(":checked")) { this.show_markers='1' } else { this.show_markers='' }
-            if ($("#checkbox-accurate").is(":checked")) { this.accurate='1' } else { this.accurate='' }
-            if ($("#checkbox-approx").is(":checked")) { this.approx='1' } else { this.approx='' }
-            if ($("#checkbox-fatal").is(":checked")) { this.show_fatal='1' } else { this.show_fatal='' }
-            if ($("#checkbox-severe").is(":checked")) { this.show_severe='1' } else { this.show_severe='' }
-            if ($("#checkbox-light").is(":checked")) { this.show_light='1' } else { this.show_light='' }
+            if ($("#checkbox-discussions").is(":checked")) { this.show_discussions='1'; } else { this.show_discussions=''; }
+            if ($("#checkbox-accidents").is(":checked")) { this.show_markers='1'; } else { this.show_markers=''; }
+            if ($("#checkbox-accurate").is(":checked")) { this.accurate='1'; } else { this.accurate=''; }
+            if ($("#checkbox-approx").is(":checked")) { this.approx='1'; } else { this.approx=''; }
+            if ($("#checkbox-fatal").is(":checked")) { this.show_fatal='1'; } else { this.show_fatal=''; }
+            if ($("#checkbox-severe").is(":checked")) { this.show_severe='1'; } else { this.show_severe=''; }
+            if ($("#checkbox-light").is(":checked")) { this.show_light='1'; } else { this.show_light=''; }
 
             if ($("#checkbox-urban").is(":checked") && $("#checkbox-nonurban").is(":checked")) {
                 this.show_urban = 3;
@@ -972,7 +998,7 @@ $(function () {
                 this.show_urban = 1;
             } else {
                 this.show_urban = 0;
-            };
+            }
 
             if ($("#checkbox-intersection").is(":checked") && $("#checkbox-nonintersection").is(":checked")) {
                 this.show_intersection = 3;
@@ -982,7 +1008,7 @@ $(function () {
                 this.show_intersection = 1;
             } else {
                 this.show_intersection = 0;
-            };
+            }
 
             // This section only filters one-lane and multi-lane.
             // Accidents with 'other' setting (which are the majority) Will not be shown
@@ -994,7 +1020,7 @@ $(function () {
                 this.show_lane = 1;
             } else {
                 this.show_lane = 0;
-            };
+            }
 
             this.weather = $("input[type='radio'][name='weather']:checked").val();
             this.road = $("input[type='radio'][name='road']:checked").val();
@@ -1005,7 +1031,7 @@ $(function () {
             this.district = $("input[type='radio'][name='district']:checked").val();
             this.case_type = $("input[type='radio'][name='casetype']:checked").val();
 
-            this.dateRanges = [new Date($("#sdate").val()), new Date($("#edate").val())]
+            this.dateRanges = [new Date($("#sdate").val()), new Date($("#edate").val())];
             this.resetMarkers();
             this.fetchMarkers();
             this.updateFilterString();
@@ -1091,13 +1117,13 @@ $(function () {
         },
         changeDate: function() {
 
-            this.show_day = $("input[type='radio'][name='day']:checked").val()
-            this.show_holiday = $("input[type='radio'][name='holiday']:checked").val()
-            this.show_time = $("input[type='radio'][name='time']:checked").val()
+            this.show_day = $("input[type='radio'][name='day']:checked").val();
+            this.show_holiday = $("input[type='radio'][name='holiday']:checked").val();
+            this.show_time = $("input[type='radio'][name='time']:checked").val();
             // TODO: only parses the hour int for now, need to apply the minutes too
             if (!isNaN(parseInt($("#stime").val())) && !isNaN(parseInt($("#etime").val()))){
-                this.start_time = parseInt($("#stime").val())
-                this.end_time = parseInt($("#etime").val())
+                this.start_time = parseInt($("#stime").val());
+                this.end_time = parseInt($("#etime").val());
                 $("#checkbox-time-all").prop('checked', true);
             }
 
@@ -1173,9 +1199,9 @@ $(function () {
 
                 // Severity variables and strings
                 if (fatal == '1') {
-                    fatal = "קטלנית "
+                    fatal = "קטלנית ";
                 } else {
-                    fatal = ""
+                    fatal = "";
                 }
                 if (severe == '1' && fatal != '' && light == '') {
                     severe = "וקשה ";
@@ -1184,9 +1210,9 @@ $(function () {
                 } else {
                     severe = '';
                 }
-                ;
+                
                 if (fatal == '' && severe == '' && light == '') {
-                    severityText = ""
+                    severityText = "";
                 }
 
                 if (light == '1' && (fatal != '' || severe != '')) {
@@ -1199,9 +1225,9 @@ $(function () {
 
                 // Accuracy variables and strings
                 if (accurate == '1') {
-                    accurate = "מדויק "
+                    accurate = "מדויק ";
                 } else {
-                    accurate = ""
+                    accurate = "";
                 }
                 if (approx == '1' && accurate != '') {
                     approx = "ומרחבי";
@@ -1211,7 +1237,7 @@ $(function () {
                     approx = "";
                 }
                 if (accurate == '' && approx == '') {
-                    accuracyText = ""
+                    accuracyText = "";
                 }
 
                 $("#filter-string").empty()

@@ -2,17 +2,19 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
-from constants import CONST
- 
+from .constants import CONST
+from collections import namedtuple
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, DateTime, Text, Index, desc, sql, Table, \
-        ForeignKeyConstraint, func, or_
+        ForeignKeyConstraint, func
 from sqlalchemy.orm import relationship, load_only, backref
 
 import datetime
-import localization
-from database import Base, db_session
-from flask.ext.security import Security, SQLAlchemyUserDatastore, \
-        UserMixin, RoleMixin, login_required
+from . import localization
+from .database import Base, db_session
+from flask.ext.security import UserMixin, RoleMixin
+
+
+MarkerResult = namedtuple('MarkerResult', ['markers', 'total_records'])
 
 db_encoding = 'utf-8'
 
@@ -248,9 +250,11 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
 
         approx = kwargs.get('approx', True)
         accurate = kwargs.get('accurate', True)
+        page = kwargs.get('page')
+        per_page = kwargs.get('per_page')
 
         if not kwargs.get('show_markers', True):
-            return Marker.query.filter(sql.false())
+            return MarkerResult(markers=Marker.query.filter(sql.false()), total_records=0)
         markers = Marker.query \
             .filter(Marker.longitude <= kwargs['ne_lng']) \
             .filter(Marker.longitude >= kwargs['sw_lng']) \
@@ -266,7 +270,7 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
         elif approx and not accurate:
             markers = markers.filter(Marker.locationAccuracy != 1)
         elif not accurate and not approx:
-            return Marker.query.filter(sql.false())
+            return MarkerResult(markers=Marker.query.filter(sql.false()), total_records=0)
         if not kwargs.get('show_fatal', True):
             markers = markers.filter(Marker.severity != 1)
         if not kwargs.get('show_severe', True):
@@ -279,21 +283,21 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
             elif kwargs['show_urban'] == 1:
                 markers = markers.filter(Marker.roadType >= 3).filter(Marker.roadType <= 4)
             else:
-                return Marker.query.filter(sql.false())
+                return MarkerResult(markers=Marker.query.filter(sql.false()), total_records=0)
         if kwargs.get('show_intersection', 3) != 3:
             if kwargs['show_intersection'] == 2:
                 markers = markers.filter(Marker.roadType != 2).filter(Marker.roadType != 4)
             elif kwargs['show_intersection'] == 1:
                 markers = markers.filter(Marker.roadType != 1).filter(Marker.roadType != 3)
             else:
-                return Marker.query.filter(sql.false())
+                return MarkerResult(markers=Marker.query.filter(sql.false()), total_records=0)
         if kwargs.get('show_lane', 3) != 3:
             if kwargs['show_lane'] == 2:
                 markers = markers.filter(Marker.one_lane >= 2).filter(Marker.one_lane <= 3)
             elif kwargs['show_lane'] == 1:
                 markers = markers.filter(Marker.one_lane == 1)
             else:
-                return Marker.query.filter(sql.false())
+                return MarkerResult(markers=Marker.query.filter(sql.false()), total_records=0)
 
         if kwargs.get('show_day', 7) != 7:
             markers = markers.filter(func.extract("dow", Marker.created) == kwargs['show_day'])
@@ -334,6 +338,10 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
         if is_thin:
             markers = markers.options(load_only("id", "longitude", "latitude"))
 
+        total_records = markers.count()
+        if page and per_page:
+            markers = markers.offset((page - 1 ) * per_page).limit(per_page)
+
         if involved_and_vehicles:
             fetch_markers = kwargs.get('fetch_markers', True)
             fetch_vehicles = kwargs.get('fetch_vehicles', True)
@@ -348,10 +356,11 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
                 vehicles = db_session.query(Vehicle).filter(Vehicle.accident_id.in_(markers_ids))
             if fetch_involved:
                 involved = db_session.query(Involved).filter(Involved.accident_id.in_(markers_ids))
-            return markers.all() if markers is not None else [], vehicles.all() if vehicles is not None else [], \
+            result = markers.all() if markers is not None else [], vehicles.all() if vehicles is not None else [], \
                    involved.all() if involved is not None else []
+            return MarkerResult(markers=result, total_records=len(result))
         else:
-            return markers
+            return MarkerResult(markers=markers, total_records=total_records)
 
     @staticmethod
     def get_marker(marker_id):
@@ -398,16 +407,16 @@ class DiscussionMarker(MarkerMixin, Base):
     @classmethod
     def parse(cls, data):
         # FIXME the id should be generated automatically, but isn't
-      last = DiscussionMarker.query.order_by('-id').first()
-      return DiscussionMarker(
-          id=last.id + 1 if last else 0,
-          latitude=data["latitude"],
-          longitude=data["longitude"],
-          created=datetime.datetime.now(),
-          title=data["title"],
-          identifier=data["identifier"],
-          type=CONST.MARKER_TYPE_DISCUSSION
-      )
+        last = DiscussionMarker.query.order_by('-id').first()
+        return DiscussionMarker(
+            id=last.id + 1 if last else 0,
+            latitude=data["latitude"],
+            longitude=data["longitude"],
+            created=datetime.datetime.now(),
+            title=data["title"],
+            identifier=data["identifier"],
+            type=CONST.MARKER_TYPE_DISCUSSION
+        )
 
     @staticmethod
     def bounding_box_query(ne_lat, ne_lng, sw_lat, sw_lng, show_discussions):
@@ -580,13 +589,11 @@ class ReportPreferences(Base):
 
 
 def init_db():
-    from database import engine
+    from .database import engine
     # import all modules here that might define models so that
     # they will be registered properly on the metadata.  Otherwise
     # you will have to import them first before calling init_db()
     logging.info("Importing models")
     logging.info("Creating all tables")
     Base.metadata.create_all(bind=engine)
-	
-if __name__ == "__main__":
-    init_db()
+

@@ -62,6 +62,7 @@ I would like to know where it was used.
 
 Class is available under the open-source GDAL license (www.gdal.org).
 """
+# pylint: disable=W
 
 import math
 
@@ -336,6 +337,7 @@ class GlobalGeodetic(object):
 		return 180 / 256.0 / 2**zoom
 		#return 180 / float( 1 << (8+zoom) )
 
+	@staticmethod
 	def TileBounds(tx, ty, zoom):
 		"Returns bounds of the given tile"
 		res = 180 / 256.0 / 2**zoom
@@ -347,7 +349,7 @@ class GlobalGeodetic(object):
 		)
 
 if __name__ == "__main__":
-	import sys, os
+	import sys
 		
 	def Usage(s = ""):
 		print "Usage: globalmaptiles.py [-profile 'mercator'|'geodetic'] zoomlevel lat lon [latmax lonmax]"
