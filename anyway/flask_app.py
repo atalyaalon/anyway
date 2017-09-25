@@ -5,7 +5,7 @@ from StringIO import StringIO
 import time
 
 import jinja2
-from flask import make_response, render_template, Response, jsonify, url_for, flash
+from flask import make_response, render_template, Response, jsonify, url_for, flash, abort
 import flask.ext.assets
 from webassets.ext.jinja2 import AssetsExtension
 from webassets import Environment as AssetsEnvironment
@@ -13,7 +13,6 @@ from flask.ext.babel import Babel,gettext
 from .clusters_calculator import retrieve_clusters
 from sqlalchemy.orm import load_only
 
-from .database import db_session
 from flask import request, redirect, session
 import logging
 import datetime
@@ -40,6 +39,7 @@ from .base import user_optional
 from .models import (Marker, DiscussionMarker, HighlightPoint, Involved, User, ReportPreferences,
                      Vehicle, Role, GeneralPreferences)
 from .config import ENTRIES_PER_PAGE
+import httplib
 
 
 app = utilities.init_flask(__name__)
@@ -55,7 +55,7 @@ app.config['OAUTH_CREDENTIALS'] = {
     },
     'google': {
         'id': os.environ.get('GOOGLE_LOGIN_CLIENT_ID'),
-        'secret': os.environ.get('GOOGLE_LOGIN_CLIENT_SECRET')    
+        'secret': os.environ.get('GOOGLE_LOGIN_CLIENT_SECRET')
     }
 }
 assets = flask.ext.assets.Environment()
@@ -87,7 +87,7 @@ Compress(app)
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    db_session.remove()
+    db.session.remove()
 
 
 def generate_json(accidents, discussions, is_thin, total_records=None):
@@ -130,13 +130,24 @@ ARG_TYPES = {'ne_lat': (float, 32.072427482938345), 'ne_lng': (float, 34.7992896
              'start_time': (int, 25), 'end_time': (int, 25), 'weather': (int, 0), 'road': (int, 0),
              'separation': (int, 0), 'surface': (int, 0), 'acctype': (int, 0), 'controlmeasure': (int, 0),
              'district': (int, 0), 'case_type': (int, 0), 'fetch_markers': (bool, True), 'fetch_vehicles': (bool, True),
-             'fetch_involved': (bool, True),
+             'fetch_involved': (bool, True), 'age_groups': (str, ""),
              'page': (int, 0),
              'per_page': (int, 0)}
 
 def get_kwargs():
     kwargs = {arg: arg_type(request.values.get(arg, default_value)) for (arg, (arg_type, default_value)) in ARG_TYPES.iteritems()}
-    kwargs.update({arg: datetime.date.fromtimestamp(int(request.values[arg])) for arg in ('start_date', 'end_date')})
+
+    if kwargs['age_groups']:
+        try:
+            kwargs['age_groups'] = [int(value) for value in kwargs['age_groups'].split(',')]
+        except ValueError:
+            abort(httplib.BAD_REQUEST)
+
+    try:
+        kwargs.update({arg: datetime.date.fromtimestamp(int(request.values[arg])) for arg in ('start_date', 'end_date')})
+    except ValueError:
+        abort(httplib.BAD_REQUEST)
+
     return kwargs
 
 @babel.localeselector
@@ -204,8 +215,8 @@ def involved_data_refinement(involved):
 
 @app.route("/markers/<int:marker_id>", methods=["GET"])
 def marker(marker_id):
-    involved = db_session.query(Involved).filter(Involved.accident_id == marker_id)
-    vehicles = db_session.query(Vehicle).filter(Vehicle.accident_id == marker_id)
+    involved = db.session.query(Involved).filter(Involved.accident_id == marker_id)
+    vehicles = db.session.query(Vehicle).filter(Vehicle.accident_id == marker_id)
     list_to_return = list()
     for inv in involved:
         obj = inv.serialize()
@@ -239,7 +250,7 @@ def discussion():
             context.update({'new': True, 'latitude': lat, 'longitude': lon})
         else:  # show existing discussion
             try:
-                marker = db_session.query(DiscussionMarker)\
+                marker = db.session.query(DiscussionMarker)\
                     .filter(DiscussionMarker.identifier == \
                             identifier).first()
                 context['title'] = marker.title
@@ -288,8 +299,8 @@ def highlightpoint():
 # Post handler for a generic REST API
 def post_handler(obj):
     try:
-        db_session.add(obj)
-        db_session.commit()
+        db.session.add(obj)
+        db.session.commit()
         return jsonify(obj.serialize())
     except Exception as e:
         logging.debug("could not handle a post for object:{0}, error:{1}".format(obj, e.message))
@@ -411,18 +422,18 @@ def updatebyemail():
         return  jsonify(respo='Last name to long')
     if len(emailaddress)>40:
         return jsonify(respo='Email too long', emailaddress = emailaddress)
-    user_exists = db_session.query(User).filter(User.email == emailaddress)
+    user_exists = db.session.query(User).filter(User.email == emailaddress)
     if user_exists.count()==0:
         user = User(email = emailaddress, first_name = fname.decode("utf8"), last_name = lname.decode("utf8"), new_features_subscription=True)
-        db_session.add(user)
-        db_session.commit()
+        db.session.add(user)
+        db.session.commit()
         return jsonify(respo='Subscription saved', )
     else:
         user_exists = user_exists.first()
         if user_exists.new_features_subscription==False:
             user_exists.new_features_subscription = True
-            db_session.add(user_exists)
-            db_session.commit()
+            db.session.add(user_exists)
+            db.session.commit()
             return jsonify(respo='Subscription saved', )
         else:
             return jsonify(respo='Subscription already exist')
@@ -432,11 +443,11 @@ def update_preferences():
     if not current_user.is_authenticated:
         return jsonify(respo='user not authenticated')
     cur_id = current_user.get_id()
-    cur_user = db_session.query(User).filter(User.id == cur_id).first()
+    cur_user = db.session.query(User).filter(User.id == cur_id).first()
     if cur_user is None:
         return jsonify(respo='user not found')
-    cur_report_preferences = db_session.query(ReportPreferences).filter(User.id == cur_id).first()
-    cur_general_preferences = db_session.query(GeneralPreferences).filter(User.id == cur_id).first()
+    cur_report_preferences = db.session.query(ReportPreferences).filter(User.id == cur_id).first()
+    cur_general_preferences = db.session.query(GeneralPreferences).filter(User.id == cur_id).first()
     if request.method == "GET":
         if cur_report_preferences is None and cur_general_preferences is None:
             return jsonify(accident_severity='0', pref_accidents_lms=True, pref_accidents_ihud=True, produce_accidents_report=False)
@@ -460,16 +471,16 @@ def update_preferences():
         history_report = json_data['history_report']
         is_history_report = (history_report != '0')
         resource_types = ','.join(resources)
-        cur_general_preferences = db_session.query(GeneralPreferences).filter(User.id == cur_id).first()
+        cur_general_preferences = db.session.query(GeneralPreferences).filter(User.id == cur_id).first()
         if cur_general_preferences is None:
             general_pref = GeneralPreferences(user_id = cur_id, minimum_displayed_severity = accident_severity, resource_type = resource_types)
-            db_session.add(general_pref)
-            db_session.commit()
+            db.session.add(general_pref)
+            db.session.commit()
         else:
             cur_general_preferences.minimum_displayed_severity = accident_severity
             cur_general_preferences.resource_type = resource_types
-            db_session.add(cur_general_preferences)
-            db_session.commit()
+            db.session.add(cur_general_preferences)
+            db.session.commit()
 
         if produce_accidents_report:
             if lat == '':
@@ -480,8 +491,8 @@ def update_preferences():
                 report_pref = ReportPreferences(user_id = cur_id, line_number=1, historical_report=is_history_report,\
                                                 how_many_months_back=history_report, latitude=lat,longitude=lon,\
                                                 radius=pref_radius, minimum_severity=pref_accident_severity_for_report)
-                db_session.add(report_pref)
-                db_session.commit()
+                db.session.add(report_pref)
+                db.session.commit()
             else:
                 cur_report_preferences.historical_report = is_history_report
                 cur_report_preferences.latitude = lat
@@ -489,12 +500,12 @@ def update_preferences():
                 cur_report_preferences.radius = pref_radius
                 cur_report_preferences.minimum_severity = pref_accident_severity_for_report
                 cur_report_preferences.how_many_months_back = history_report
-                db_session.add(cur_report_preferences)
-                db_session.commit()
+                db.session.add(cur_report_preferences)
+                db.session.commit()
         else:
             if cur_report_preferences is not None:
-                db_session.delete(cur_report_preferences)
-                db_session.commit()
+                db.session.delete(cur_report_preferences)
+                db.session.commit()
         return jsonify(respo='ok', )
 
 
@@ -511,7 +522,7 @@ class HistoricalReportPeriods:
         self.period_value=period_value
         self.severity_string=severity_string
 
-    
+
 class LoginFormAdmin(form.Form):
     username = fields.StringField(validators=[validators.required()])
     password = fields.PasswordField(validators=[validators.required()])
@@ -526,7 +537,7 @@ class LoginFormAdmin(form.Form):
             raise validators.ValidationError('Invalid password')
 
     def get_user(self):
-        return db_session.query(User).filter_by(username=self.username.data).first()
+        return db.session.query(User).filter_by(username=self.username.data).first()
 
 
 class RegistrationForm(form.Form):
@@ -535,7 +546,7 @@ class RegistrationForm(form.Form):
     password = fields.PasswordField(validators=[validators.required()])
 
     def validate_login(self, field):
-        if db_session.query(User).filter_by(username=self.username.data).count() > 0:
+        if db.session.query(User).filter_by(username=self.username.data).count() > 0:
             raise validators.ValidationError('Duplicate username')
 
 
@@ -545,8 +556,8 @@ def init_login():
 
     # Create user loader function
     @login_manager.user_loader
-    def load_user(user_id):
-        return db_session.query(User).get(user_id)
+    def load_user(user_id): # pylint: disable=unused-variable
+        return db.session.query(User).get(user_id)
 
 
 class AdminView(sqla.ModelView):
@@ -596,8 +607,8 @@ class AdminIndexView(admin.AdminIndexView):
     #        user.password = generate_password_hash(form.password.data)
     #        user.is_admin = True
     #
-    #        db_session.add(user)
-    #        db_session.commit()
+    #        db.session.add(user)
+    #        db.session.commit()
     #
     #        login.login_user(user)
     #        return redirect(url_for('.index'))
@@ -617,7 +628,7 @@ class SendToSubscribersView(BaseView):
     @expose('/', methods=('GET', 'POST'))
     def index(self):
         if request.method=='GET':
-            user_emails = db_session.query(User).filter(User.new_features_subscription == True)
+            user_emails = db.session.query(User).filter(User.new_features_subscription == True)
             email_list = []
             for user in user_emails:
                 email_list.append(user.email)
@@ -626,7 +637,7 @@ class SendToSubscribersView(BaseView):
             return self.render('sendemail.html', **context)
         else:
             jsondata = request.get_json(force=True)
-            users_send_email_to = db_session.query(User).filter(User.new_features_subscription == True)
+            users_send_email_to = db.session.query(User).filter(User.new_features_subscription == True)
             message = Mail()
             message.set_subject(jsondata['subject'].encode("utf8"))
             message.set_text(jsondata['message'].encode("utf8"))
@@ -634,7 +645,7 @@ class SendToSubscribersView(BaseView):
             for user in users_send_email_to:
                 message.add_bcc(user.email)
             try:
-                status, msg = sg.send(message)
+                sg.send(message)
             except SendGridClientError:
                 return "Error occurred while trying to send the emails"
             except SendGridServerError:
@@ -648,7 +659,7 @@ class ViewHighlightedMarkersData(BaseView):
     @roles_required('admin')
     @expose('/')
     def index(self):
-        highlightedpoints = db_session.query(HighlightPoint).options(load_only("id", "latitude", "longitude", "type"))
+        highlightedpoints = db.session.query(HighlightPoint).options(load_only("id", "latitude", "longitude", "type"))
         points = []
         for point in highlightedpoints:
             p = HighlightPoint()
@@ -692,10 +703,10 @@ class OpenNewOrgAccount(BaseView):
         formAccount = OpenAccountForm(request.form)
         if request.method == "POST" and formAccount.validate_on_submit():
             user = User(username = formAccount.username.data, password = formAccount.password.data)
-            role = db_session.query(Role).filter(Role.id==2).first()
+            role = db.session.query(Role).filter(Role.id==2).first()
             user.roles.append(role)
-            db_session.add(user)
-            db_session.commit()
+            db.session.add(user)
+            db.session.commit()
             flash('The user was created successfully')
         return self.render('open_account.html', form=formAccount)
 
@@ -707,7 +718,7 @@ init_login()
 
 admin = admin.Admin(app, 'ANYWAY Administration Panel', index_view=AdminIndexView(), base_template='admin_master.html')
 
-admin.add_view(AdminView(User, db_session, name='Users', endpoint='AllUsers', category='Users'))
+admin.add_view(AdminView(User, db.session, name='Users', endpoint='AllUsers', category='Users'))
 admin.add_view(OpenNewOrgAccount(name='Open new organization account', endpoint='OpenAccount', category='Users'))
 admin.add_view(SendToSubscribersView(name='Send To Subscribers'))
 admin.add_view(ViewHighlightedMarkersData(name='View Highlighted Markers Data', endpoint='ViewHighlightedMarkersData', category='View Highlighted Markers'))
@@ -750,7 +761,7 @@ class ExtendedLoginForm(LoginForm):
             return False
         if self.username.data.strip() == '':
             return False
-        self.user = db_session.query(User).filter(User.username==self.username.data).first()
+        self.user = db.session.query(User).filter(User.username==self.username.data).first()
         if self.user is None:
             return False
         if self.password.data == self.user.password:
@@ -779,7 +790,7 @@ def TestLogin():
 
 def get_current_user_first_name():
     cur_id = current_user.get_id()
-    cur_user = db_session.query(User).filter(User.id == cur_id).first()
+    cur_user = db.session.query(User).filter(User.id == cur_id).first()
     if cur_user is not None:
         return cur_user.first_name
     return "User"
@@ -789,7 +800,7 @@ def get_current_user_first_name():
 
 @lm.user_loader
 def load_user(id):
-    return User.query.get(int(id))
+    return db.session.query(User).get(int(id))
 
 @app.route('/logout')
 def logout():
@@ -812,9 +823,9 @@ def oauth_callback(provider):
     oauth = OAuthSignIn.get_provider(provider)
     if provider == 'google':
         username, email = oauth.callback()
-        if email is None:        
+        if email is None:
             flash('Authentication failed.')
-            return redirect(url_for('index'))    
+            return redirect(url_for('index'))
         user=User.query.filter_by(email=email).first()
         if not user:
             user = User(nickname=username, email=email, provider=provider)
@@ -832,4 +843,3 @@ def oauth_callback(provider):
             db.session.commit()
     login.login_user(user, True)
     return redirect(url_for('index'))
-

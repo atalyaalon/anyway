@@ -346,7 +346,7 @@ def _batch_iterator(iterable, batch_size):
 
     while True:
         batch = []
-        for i in xrange(batch_size):
+        for _ in xrange(batch_size):
             try:
                 batch.append(next(iterator))
             except StopIteration:
@@ -376,7 +376,7 @@ def import_to_datastore(directory, provider_code, batch_size):
 
         accidents = (accident for accident
                      in import_accidents(provider_code=provider_code, **files_from_lms)
-                     if  Marker.query.filter(
+                     if  db.session.query(Marker).filter(
                              and_(Marker.id == accident["id"],
                                   Marker.provider_code == accident["provider_code"])).scalar() is None)
 
