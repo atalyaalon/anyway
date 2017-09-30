@@ -1,8 +1,11 @@
 settlement = "ISHUV"
+maamad_minizipali = "MAAMAD_MINIZIPALI"
+municipal_stance = "MUNICIPAL_STANCE"  # from cities.csv
 street1="REHOV1"
 street2="REHOV2"
-road1="KVISH1"
-road2="KVISH2"
+road1 = "KVISH1"
+road2 = "KVISH2"
+km = "KM"
 junction_name = "SHEM_ZOMET"
 settlement_sign = "SEMEL_YISHUV"
 street_sign = "SEMEL_RECHOV"

@@ -291,7 +291,9 @@
                 <p class="comments" style="margin:0"></p>
                 <p class="casualties" style="margin:0"></p>
                 <p class="weather" style="margin:0"></p>
-
+                <p class="road1" style="margin:0"></p>
+                <p class="road2" style="margin:0"></p>
+                <p class="km" style="margin:0"></p>
 
             </div>
         </div>
@@ -336,6 +338,9 @@
                             <p class="road_light" style="margin:0"></p>
                             <p class="road_control" style="margin:0"></p>
                             <p class="weather" style="margin:0"></p>
+                            <p class="road1" style="margin:0"></p>
+                            <p class="road2" style="margin:0"></p>
+                            <p class="km" style="margin:0"></p>
                             <p class="road_surface" style="margin:0"></p>
                             <p class="cross_location" style="margin:0"></p>
                             <p class="cross_direction" style="margin:0"></p>
@@ -1293,6 +1298,15 @@
             {% endif %}
             {% if weather is defined and weather != '-1' %}
                 app.weather = {{weather}};
+            {% endif %}
+            {% if road1 is defined and road1 != '-1' %}
+                app.road1 = {{road1}};
+            {% endif %}
+            {% if road2 is defined and road2 != '-1' %}
+                app.road2 = {{road2}};
+            {% endif %}
+            {% if km is defined and km != '-1' %}
+                app.km = {{km}};
             {% endif %}
             {% if road is defined and road != '-1' %}
                 app.road = {{road}};

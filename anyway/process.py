@@ -48,6 +48,11 @@ lms_files = {
     VEHICLES: "VehData.csv"
 }
 
+DICTCOLUMN1 = "MS_TAVLA"
+DICTCOLUMN2 = "KOD"
+DICTCOLUMN3 = "TEUR"
+content_encoding = 'cp1255'
+
 coordinates_converter = ItmToWGS84()
 app = init_flask(__name__)
 db = SQLAlchemy(app)
@@ -202,7 +207,7 @@ def get_data_value(value):
     return int(value) if value else -1
 
 
-def import_accidents(provider_code, accidents, streets, roads, **kwargs):
+def import_accidents(provider_code, accidents, streets, roads, dictionary, **kwargs):
     logging.info("\tReading accident data from '%s'..." % os.path.basename(accidents.name()))
     for accident in accidents:
         if field_names.x_coordinate not in accident or field_names.y_coordinate not in accident:
@@ -249,6 +254,14 @@ def import_accidents(provider_code, accidents, streets, roads, **kwargs):
             "cross_mode": get_data_value(accident[field_names.cross_mode]),
             "cross_location": get_data_value(accident[field_names.cross_location]),
             "cross_direction": get_data_value(accident[field_names.cross_direction]),
+            "road1": get_data_value(accident[field_names.road1]),
+            "road2": get_data_value(accident[field_names.road2]),
+            "km": get_data_value(accident[field_names.km]),
+            #"rashut_type": localization.get_rashut_type(get_data_value(accident[field_names.maamad_minizipali])),
+            # "municipality_code": get_data_value(accident[field_names.maamad_minizipali]),
+            # "municipality_name": localization.get_municipality_name(get_data_value(accident[field_names.maamad_minizipali]), dictionary),
+            # "settelment_sign": get_data_value(accident[field_names.settlement_sign]),
+            # "settelment_name": localization.get_city_name(get_data_value(accident[field_names.settlement_sign]))
         }
 
         yield marker
@@ -309,7 +322,7 @@ def import_vehicles(provider_code, vehicles, **kwargs):
 def get_files(directory):
     for name, filename in lms_files.iteritems():
 
-        if name not in (STREETS, NON_URBAN_INTERSECTION, ACCIDENTS, INVOLVED, VEHICLES):
+        if name not in (STREETS, NON_URBAN_INTERSECTION, ACCIDENTS, INVOLVED, VEHICLES, DICTIONARY):
             continue
 
         files = filter(lambda path: filename.lower() in path.lower(), os.listdir(directory))
@@ -338,6 +351,14 @@ def get_files(directory):
             yield ROADS, roads
         elif name in (ACCIDENTS, INVOLVED, VEHICLES):
             yield name, csv
+        elif name == DICTIONARY:
+            lms_dictionary = {}
+            for row in csv:
+                if type(row[DICTCOLUMN3]) is str:
+                    lms_dictionary[(int(row[DICTCOLUMN1]),int(row[DICTCOLUMN2]))] = row[DICTCOLUMN3].decode(content_encoding)
+                else:
+                    lms_dictionary[(int(row[DICTCOLUMN1]),int(row[DICTCOLUMN2]))] = int(row[DICTCOLUMN3])
+            yield name, lms_dictionary
 
 
 def _batch_iterator(iterable, batch_size):

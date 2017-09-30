@@ -138,7 +138,7 @@ class HighlightPoint(Point, Base):
 class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
     __tablename__ = "markers"
     __table_args__ = (
-        Index('acc_long_lat_idx', 'latitude', 'longitude'),
+        Index('acc_long_lat_idx', 'latitude', 'longitude', 'road1'),
     )
 
     __mapper_args__ = {
@@ -174,6 +174,13 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
     cross_mode = Column(Integer)
     cross_location = Column(Integer)
     cross_direction = Column(Integer)
+    road1 = Column(Integer)
+    road2 = Column(Integer)
+    km = Column(Integer)
+    # municipality_code = Column(Integer)
+    # municipality_name = Column(Text)
+    # settelment_sign = Column(Integer)
+    # settelment_name = Column(Text)
 
     @staticmethod
     def json_to_description(msg):
@@ -227,6 +234,13 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
                 "cross_mode": self.cross_mode,
                 "cross_location": self.cross_location,
                 "cross_direction": self.cross_direction,
+                "road1": self.road1,
+                "road2": self.road2,
+                "km": self.km,
+                # "municipality_code": self.municipality_code,
+                # "municipality_name": self.municipality_name,
+                # "settelment_sign": self.settelment_sign,
+                # "settelment_name": self.settelment_name,
             }
             for name, value in optional.iteritems():
                 if value != 0:
@@ -322,6 +336,12 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
                              .filter(func.extract("hour", Marker.created) < kwargs['end_time'])
         if kwargs.get('weather', 0) != 0:
             markers = markers.filter(Marker.weather == kwargs['weather'])
+        if kwargs.get('road1', 0) != 0:
+            markers = markers.filter(Marker.road1 == kwargs['road1'])
+        if kwargs.get('road2', 0) != 0:
+            markers = markers.filter(Marker.road2 == kwargs['road2'])
+        if kwargs.get('km', 0) != 0:
+            markers = markers.filter(Marker.km == kwargs['km'])
         if kwargs.get('road', 0) != 0:
             markers = markers.filter(Marker.roadShape == kwargs['road'])
         if kwargs.get('separation', 0) != 0:
@@ -382,6 +402,13 @@ class Marker(MarkerMixin, Base): # TODO rename to AccidentMarker
             longitude=data["longitude"]
         )
 
+    @staticmethod
+    def get_road1_markers(road_id):
+        return db.session.query(Marker).filter_by(road1=road_id)
+
+    @staticmethod
+    def get_road2_markers(road_id):
+        return db.session.query(Marker).filter_by(road2=road_id)
 
 class DiscussionMarker(MarkerMixin, Base):
     __tablename__ = "discussions"

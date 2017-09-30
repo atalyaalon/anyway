@@ -237,7 +237,7 @@ _fields = {
 
 _cities = list(csv.DictReader(open(os.path.join("static/data/cities.csv"))))
 _cities_names = {int(x[field_names.sign]): x[field_names.name].decode('cp1255') for x in _cities}
-
+_cities_municipality = {int(x[field_names.sign]): x[field_names.municipal_stance] for x in _cities}
 
 def get_field(field, value=None):
     if value:
@@ -250,6 +250,29 @@ def get_field(field, value=None):
 def get_supported_tables():
     return _tables.keys()
 
-
 def get_city_name(symbol_id):
     return _cities_names.get(symbol_id, None)
+
+def get_city_municipality_code(symbol_id):
+    return _cities_municipality.get(symbol_id, None)
+
+def get_municipality_name(maamad_minizipali, dictionary):
+    if maamad_minizipali == -1:
+        return 'UNKNOWN'
+    if maamad_minizipali == 0:
+        return 'CITY'
+    if maamad_minizipali == 99:
+        return 'LOCAL_MUNICIPALITY'
+    municipality_name = dictionary.get((78, maamad_minizipali), None)
+    if municipality_name is None:
+        raise ValueError('municipality wasnt found!')
+    return municipality_name
+
+def get_rashut_type(maamad_minizipali):
+    if maamad_minizipali == -1:
+        return 'UNKNOWN'
+    if maamad_minizipali == 0:
+        return 'CITY'
+    if maamad_minizipali == 99:
+        return 'LOCAL_MUNICIPALITY'
+    return 'REGIONAL_MUNICIPALITY'

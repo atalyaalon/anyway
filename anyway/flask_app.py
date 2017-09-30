@@ -127,7 +127,8 @@ ARG_TYPES = {'ne_lat': (float, 32.072427482938345), 'ne_lng': (float, 34.7992896
              'approx': (bool, True), 'accurate': (bool, True), 'show_markers': (bool, True),
              'show_discussions': (bool, True), 'show_urban': (int, 3), 'show_intersection': (int, 3),
              'show_lane': (int, 3), 'show_day': (int, 0), 'show_holiday': (int, 0),  'show_time': (int, 24),
-             'start_time': (int, 25), 'end_time': (int, 25), 'weather': (int, 0), 'road': (int, 0),
+             'start_time': (int, 25), 'end_time': (int, 25), 'weather': (int, 0), 'road1': (int, 0), 'road2': (int, 0),
+             'road': (int, 0), 'km': (int, 0),
              'separation': (int, 0), 'surface': (int, 0), 'acctype': (int, 0), 'controlmeasure': (int, 0),
              'district': (int, 0), 'case_type': (int, 0), 'fetch_markers': (bool, True), 'fetch_vehicles': (bool, True),
              'fetch_involved': (bool, True), 'age_groups': (str, ""),
@@ -366,8 +367,9 @@ def index(marker=None, message=None):
     if 'lat' in request.values and 'lon' in request.values:
         context['coordinates'] = (request.values['lat'], request.values['lon'])
     for attr in 'approx', 'accurate', 'show_markers', 'show_discussions', 'show_urban', 'show_intersection', 'show_lane',\
-                'show_day', 'show_holiday', 'show_time', 'start_time', 'end_time', 'weather', 'road', 'separation',\
-                'surface', 'acctype', 'controlmeasure', 'district', 'case_type', 'show_fatal', 'show_severe', 'show_light':
+                'show_day', 'show_holiday', 'show_time', 'start_time', 'end_time', 'weather' 'road1', 'road2', 'km', 'road', 'separation',\
+                'surface', 'acctype', 'controlmeasure', 'district', 'case_type', 'show_fatal', 'show_severe', 'show_light', \
+                'rashut_type', 'municipality_code', 'municipality_name', 'settelment_sign', 'settelment_name':
         value = request.values.get(attr)
         if value is not None:
             context[attr] = value or '-1'
