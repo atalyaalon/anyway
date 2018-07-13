@@ -22,6 +22,7 @@ def upgrade():
     op.add_column('markers', sa.Column('geom', ga.Geometry('POINT', srid=4326)))
     #op.update_column('markers', ga.functions.ST_Transform( 'geom', 4326))
     conn = op.get_bind()
+    conn.execution_options(isolation_level="AUTOCOMMIT")
     conn.execute('UPDATE markers SET geom = ST_SetSRID(ST_MakePoint(longitude,latitude),4326);')
     conn.execute('CREATE INDEX idx_markers_geom ON markers USING GIST(geom);')
     conn.execute("SELECT AddGeometryColumn('public','discussions','geom',4326,'POINT',2);")
