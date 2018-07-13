@@ -22,7 +22,6 @@ def upgrade():
     conn = op.get_bind()
     conn.execution_options(isolation_level="AUTOCOMMIT")
     conn.execute('SELECT * FROM pg_catalog.pg_tables;')
-    conn.execute('SELECT * FROM pg_catalog.pg_tables where schemaname='public';')
     conn.execute('CREATE EXTENSION IF NOT EXISTS postgis;')
     conn.execute('CREATE EXTENSION IF NOT EXISTS postgis_topology;')
     conn.execute("SELECT AddGeometryColumn('public','markers','geom',4326,'POINT',2);")
