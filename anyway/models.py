@@ -231,6 +231,8 @@ class AccidentMarker(MarkerMixin, Base):
     road1 = Column(Integer())
     road2 = Column(Integer())
     km = Column(Float())
+    km_raw = Column(Text())
+    km_accurate = Column(Boolean())
     yishuv_symbol = Column(Integer())
     yishuv_name = Column(Text())
     geo_area = Column(Integer())
@@ -250,7 +252,7 @@ class AccidentMarker(MarkerMixin, Base):
     urban_intersection = Column(Integer())
     non_urban_intersection = Column(Integer())
     non_urban_intersection_hebrew = Column(Text())
-    accident_year = Column(Integer())
+    accident_year = Column(Integer(), primary_key=True)
     accident_month = Column(Integer())
     accident_day = Column(Integer())
     accident_hour_raw = Column(Integer())
@@ -654,8 +656,8 @@ class NewsFlash(Base):
     lat = Column(Float(), nullable=True)
     link = Column(Text(), nullable=True)
     lon = Column(Float(), nullable=True)
-    road1 = Column(Float(), nullable=True)
-    road2 = Column(Float(), nullable=True)
+    road1 = Column(Integer(), nullable=True)
+    road2 = Column(Integer(), nullable=True)
     intersection = Column(Text(), nullable=True)
     city = Column(Text(), nullable=True)
     street = Column(Text(), nullable=True)
@@ -872,136 +874,6 @@ class ReportPreferences(Base):
             "radius": self.radius,
             "minimum_severity": self.minimum_severity
         }
-
-
-class AccidentsNoLocation(Base, MarkerMixin):
-    __tablename__ = "markers_no_location"
-    __table_args__ = (
-        Index('id_idx_markers_no_location', 'id', unique=False),
-        Index('provider_and_id_idx_markers_no_location', 'provider_and_id', unique=True),
-    )
-    id = Column(BigInteger(), primary_key=True)
-    provider_and_id = Column(BigInteger())
-    provider_code = Column(Integer(), primary_key=True)
-    description = Column(Text())
-    accident_type = Column(Integer())
-    accident_severity = Column(Integer())
-    address = Column(Text())
-    location_accuracy = Column(Integer())
-    road_type = Column(Integer())
-    road_shape = Column(Integer())
-    day_type = Column(Integer())
-    police_unit = Column(Integer())
-    mainStreet = Column(Text())
-    secondaryStreet = Column(Text())
-    junction = Column(Text())
-    one_lane = Column(Integer())
-    multi_lane = Column(Integer())
-    speed_limit = Column(Integer())
-    road_intactness = Column(Integer())
-    road_width = Column(Integer())
-    road_sign = Column(Integer())
-    road_light = Column(Integer())
-    road_control = Column(Integer())
-    weather = Column(Integer())
-    road_surface = Column(Integer())
-    road_object = Column(Integer())
-    object_distance = Column(Integer())
-    didnt_cross = Column(Integer())
-    cross_mode = Column(Integer())
-    cross_location = Column(Integer())
-    cross_direction = Column(Integer())
-    involved = relationship("InvolvedNoLocation", foreign_keys="InvolvedNoLocation.accident_id")
-    vehicles = relationship("VehicleNoLocation", foreign_keys="VehicleNoLocation.accident_id")
-    video_link = Column(Text())
-    road1 = Column(Integer())
-    road2 = Column(Integer())
-    km = Column(Float)
-    yishuv_symbol = Column(Integer())
-    geo_area = Column(Integer())
-    day_night = Column(Integer())
-    day_in_week = Column(Integer())
-    traffic_light = Column(Integer())
-    region = Column(Integer())
-    district = Column(Integer())
-    natural_area = Column(Integer())
-    municipal_status = Column(Integer())
-    yishuv_shape = Column(Integer())
-    street1 = Column(Integer())
-    street2 = Column(Integer())
-    home = Column(Integer())
-    urban_intersection = Column(Integer())
-    non_urban_intersection = Column(Integer())
-    accident_year = Column(Integer())
-    accident_month = Column(Integer())
-    accident_day = Column(Integer())
-    accident_hour_raw = Column(Integer())
-    accident_hour = Column(Integer())
-    accident_minute = Column(Integer())
-
-class InvolvedNoLocation(Base):
-    __tablename__ = "involved_no_location"
-    id = Column(BigInteger(), primary_key=True)
-    provider_and_id = Column(BigInteger())
-    provider_code = Column(Integer())
-    accident_id = Column(BigInteger())
-    involved_type = Column(Integer())
-    license_acquiring_date = Column(Integer())
-    age_group = Column(Integer())
-    sex = Column(Integer())
-    vehicle_type = Column(Integer())
-    safety_measures = Column(Integer())
-    involve_yishuv_symbol = Column(Integer())
-    injury_severity = Column(Integer())
-    injured_type = Column(Integer())
-    injured_position = Column(Integer())
-    population_type = Column(Integer())
-    home_region = Column(Integer())
-    home_district = Column(Integer())
-    home_natural_area = Column(Integer())
-    home_municipal_status = Column(Integer())
-    home_residence_type = Column(Integer())
-    hospital_time = Column(Integer())
-    medical_type = Column(Integer())
-    release_dest = Column(Integer())
-    safety_measures_use = Column(Integer())
-    late_deceased = Column(Integer())
-    car_id = Column(Integer())
-    involve_id = Column(Integer())
-    accident_year = Column(Integer())
-    accident_month = Column(Integer())
-    injury_severity_mais = Column(Integer())
-    __table_args__ = (ForeignKeyConstraint([accident_id, provider_code],
-                                           [AccidentsNoLocation.id, AccidentsNoLocation.provider_code],
-                                           ondelete="CASCADE"),
-                      Index('accident_id_idx_involved_no_location', 'accident_id'),
-                      Index('provider_and_id_idx_involved_no_location', 'provider_and_id', unique=False),
-                      {})
-class VehicleNoLocation(Base):
-    __tablename__ = "vehicles_no_location"
-    id = Column(BigInteger(), primary_key=True)
-    provider_and_id = Column(BigInteger())
-    provider_code = Column(Integer())
-    accident_id = Column(BigInteger())
-    engine_volume = Column(Integer())
-    manufacturing_year = Column(Integer())
-    driving_directions = Column(Integer())
-    vehicle_status = Column(Integer())
-    vehicle_attribution = Column(Integer())
-    vehicle_type = Column(Integer())
-    seats = Column(Integer())
-    total_weight = Column(Integer())
-    car_id = Column(Integer())
-    accident_year = Column(Integer())
-    accident_month = Column(Integer())
-    vehicle_damage = Column(Integer())
-    __table_args__ = (ForeignKeyConstraint([accident_id, provider_code],
-                                           [AccidentsNoLocation.id, AccidentsNoLocation.provider_code],
-                                           ondelete="CASCADE"),
-                      Index('accident_id_idx_vehicles_no_location', 'accident_id'),
-                      Index('provider_and_id_idx_vehicles_no_location', 'provider_and_id', unique=False),
-                      {})
-
 
 class School(Base):
     __tablename__ = "schools"

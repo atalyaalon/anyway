@@ -54,7 +54,7 @@ def process():
 @click.option('--email_search_start_date', type=str, default='') #format - DD.MM.YYYY
 
 def cbs(specific_folder, delete_all, path, batch_size, delete_start_date, load_start_year, from_email, username, password, email_search_start_date):
-    from anyway.parsers.cbs import main
+    from anyway.parsers.cbs_improved import main
 
     return main(specific_folder=specific_folder,
                 delete_all=delete_all,
