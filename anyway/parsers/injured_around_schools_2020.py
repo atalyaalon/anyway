@@ -32,7 +32,7 @@ ANYWAY_UI_FORMAT_MAP_ONLY = "https://www.anyway.co.il/?zoom=17&start_date={start
 ANYWAY_UI_FORMAT_WITH_FILTERS = "https://www.anyway.co.il/?zoom=17&start_date={start_date}&end_date={end_date}&lat={latitude}&lon={longitude}&show_fatal=1&show_severe=1&show_light=1&approx={location_approx}&accurate={location_accurate}&show_markers=1&show_discussions=0&show_urban=3&show_intersection=3&show_lane=3&show_day=7&show_holiday=0&show_time=24&start_time=25&end_time=25&weather=0&road=0&separation=0&surface=0&acctype={acc_type}&controlmeasure=0&district=0&case_type=0&show_rsa=0&age_groups=1234"
 DATE_INPUT_FORMAT = "%d-%m-%Y"
 DATE_URL_FORMAT = "%Y-%m-%d"
-
+SCHOOL_DATA_DIR = 'schools_data'
 
 def get_bounding_box(latitude, longitude, distance_in_km):
     latitude = math.radians(latitude)
@@ -74,65 +74,40 @@ def acc_inv_query(longitude, latitude, distance, start_date, end_date, school):
         .filter(InvolvedMarkerView.accident_timestamp < end_date)
         .filter(InvolvedMarkerView.location_accuracy == LOCATION_ACCURACY_PRECISE_INT)
         .filter(InvolvedMarkerView.age_group.in_(AGE_GROUPS))
-        #.filter(InvolvedMarkerView.involve_vehicle_type.in_(VEHICLE_TYPES))
-        #.filter(InvolvedMarkerView.injured_type.in_(INJURED_TYPES))
-        .with_entities(InvolvedMarkerView.geom,
-                       InvolvedMarkerView.injured_type,
-                       InvolvedMarkerView.injured_type_hebrew,
-                       InvolvedMarkerView.involve_vehicle_type,
-                       InvolvedMarkerView.involve_vehicle_type_hebrew,
-                       InvolvedMarkerView.injury_severity,
-                       InvolvedMarkerView.injury_severity_hebrew,
-                       InvolvedMarkerView.speed_limit,
-                       InvolvedMarkerView.speed_limit_hebrew,
-                       InvolvedMarkerView.provider_code,
-                       InvolvedMarkerView.accident_timestamp,
-                       InvolvedMarkerView.location_accuracy,
-                       InvolvedMarkerView.age_group,
-                       InvolvedMarkerView.accident_year,
-                       InvolvedMarkerView.injury_severity,
-                       InvolvedMarkerView.cross_location,
-                       InvolvedMarkerView.cross_location_hebrew,
-                       )
+        .filter(InvolvedMarkerView.injury_severity <= 3)
+        # .with_entities(InvolvedMarkerView.geom,
+        #                InvolvedMarkerView.injured_type,
+        #                InvolvedMarkerView.injured_type_hebrew,
+        #                InvolvedMarkerView.involve_vehicle_type,
+        #                InvolvedMarkerView.involve_vehicle_type_hebrew,
+        #                InvolvedMarkerView.injury_severity,
+        #                InvolvedMarkerView.injury_severity_hebrew,
+        #                InvolvedMarkerView.speed_limit,
+        #                InvolvedMarkerView.speed_limit_hebrew,
+        #                InvolvedMarkerView.provider_code,
+        #                InvolvedMarkerView.accident_timestamp,
+        #                InvolvedMarkerView.location_accuracy,
+        #                InvolvedMarkerView.age_group,
+        #                InvolvedMarkerView.age_group_hebrew,
+        #                InvolvedMarkerView.accident_year,
+        #                InvolvedMarkerView.injury_severity,
+        #                InvolvedMarkerView.cross_location,
+        #                InvolvedMarkerView.cross_location_hebrew,
+        #                )
     )
 
     df = pd.read_sql_query(query_obj.statement, query_obj.session.bind)
-    if LOCATION_ACCURACY_PRECISE:
-        location_accurate = 1
-        location_approx = ""
-    else:
-        location_accurate = 1
-        location_approx = 1
-    ui_url_map_only = ANYWAY_UI_FORMAT_MAP_ONLY.format(
-        latitude=latitude,
-        longitude=longitude,
-        start_date=start_date.strftime(DATE_URL_FORMAT),
-        end_date=end_date.strftime(DATE_URL_FORMAT),
-        acc_type=SUBTYPE_ACCIDENT_WITH_PEDESTRIAN,
-        location_accurate=location_accurate,
-        location_approx=location_approx,
-    )
-
-    ui_url_with_filters = ANYWAY_UI_FORMAT_WITH_FILTERS.format(
-        latitude=latitude,
-        longitude=longitude,
-        start_date=start_date.strftime(DATE_URL_FORMAT),
-        end_date=end_date.strftime(DATE_URL_FORMAT),
-        acc_type=SUBTYPE_ACCIDENT_WITH_PEDESTRIAN,
-        location_accurate=location_accurate,
-        location_approx=location_approx,
-    )
-
-    df["school_anyway_link"] = ui_url_map_only
-    df["anyway_link_with_filters"] = ui_url_with_filters
     df["school_id"] = school.school_id
     df["school_type"] = school.school_type
     df["school_name"] = school.school_name
     df["school_yishuv_name"] = school.yishuv_name
     df["school_longitude"] = school.longitude
     df["school_latitude"] = school.latitude
+    df_path = os.path.join(SCHOOL_DATA_DIR ,str(school.school_id) + '.csv')
+    if not os.path.exists(SCHOOL_DATA_DIR):
+        os.mkdir(SCHOOL_DATA_DIR)
+    df.to_csv(df_path)
     return df
-
 
 
 def get_injured_around_schools(start_date, end_date, distance):
@@ -145,9 +120,6 @@ def get_injured_around_schools(start_date, end_date, distance):
                     SchoolWithDescription.latitude == None, SchoolWithDescription.longitude == None
                 )
             ),
-            and_(
-                or_(SchoolWithDescription.school_id == 541896, SchoolWithDescription.school_id == 513986)
-            ),
             or_(
                 SchoolWithDescription.school_type == "גן ילדים",
                 SchoolWithDescription.school_type == "בית ספר",
@@ -155,11 +127,7 @@ def get_injured_around_schools(start_date, end_date, distance):
         )
         .all()
     )
-    data_dir = "tmp_school_data"
-    if os.path.exists(data_dir):
-        shutil.rmtree(data_dir)
-    os.mkdir(data_dir)
-    logging.info('before schools loop')
+
     for idx, school in enumerate(schools):
         if idx % 100 == 0:
             logging.info(idx)
@@ -171,232 +139,14 @@ def get_injured_around_schools(start_date, end_date, distance):
             end_date=end_date,
             school=school,
         )
-        curr_csv_path = os.path.join(data_dir, str(school.school_id))
-        logging.info('before write pickle')
-        df_curr.to_pickle(curr_csv_path)
-        logging.info('after write pickle')
-    df_total = pd.DataFrame()
-    for idx, filename in enumerate(os.listdir(data_dir)):
-        curr_csv_path = os.path.join(data_dir, filename)
-        logging.info('before read pickle')
-        df_total = pd.concat([df_total, pd.read_pickle(curr_csv_path)], axis=0)
-        logging.info('before after pickle')
-        if idx % 100 == 0:
-            logging.info(idx)
-    shutil.rmtree(data_dir)
-
-    # df_total_injured
-    logging.info("create df_total_injured")
-    df_total_injured = (
-        df_total.groupby(
-            [
-                "school_yishuv_name",
-                "school_id",
-                "school_name",
-                "school_type",
-                "school_anyway_link",
-                "school_longitude",
-                "school_latitude",
-                "accident_year",
-                "injury_severity",
-            ]
-        )
-        .size()
-        .reset_index(name="injured_count")
-        .loc[
-            :,
-            [
-                "school_yishuv_name",
-                "school_id",
-                "school_name",
-                "school_type",
-                "school_anyway_link",
-                "injury_severity",
-                "injured_count",
-                "school_longitude",
-                "school_latitude",
-                "accident_year",
-            ],
-        ]
-    )
-    df_total_injured = df_total_injured.set_index(
-        [
-            "school_yishuv_name",
-            "school_id",
-            "school_name",
-            "school_type",
-            "school_anyway_link",
-            "school_longitude",
-            "school_latitude",
-            "accident_year",
-            "injury_severity",
-        ]
-    ).unstack(-1)
-    df_total_injured.fillna({"injured_count": 0, "total_injured_count": 0}, inplace=True)
-    df_total_injured.loc[:, (slice("injured_count"), slice(None))] = df_total_injured.loc[
-        :, (slice("injured_count"), slice(None))
-    ].apply(lambda x: x.apply(int))
-    df_total_injured["total_injured_count"] = (
-        df_total_injured.loc[:, ["injured_count"]].sum(axis=1)
-    ).apply(int)
-
-    # get rank by yishuv
-    logging.info("create df_rank_by_yishuv")
-    df_rank_by_yishuv = (
-        df_total_injured.stack()
-        .groupby(
-            [
-                "school_yishuv_name",
-                "school_id",
-                "school_name",
-                "school_type",
-                "school_anyway_link",
-                "school_longitude",
-                "school_latitude",
-            ]
-        )
-        .sum()
-        .reset_index()
-    )
-    df_rank_by_yishuv["total_injured_count"] = df_rank_by_yishuv["total_injured_count"].astype(int)
-
-    groups = df_rank_by_yishuv.loc[
-        :,
-        [
-            "school_yishuv_name",
-            "school_id",
-            "school_name",
-            "school_type",
-            "school_longitude",
-            "school_latitude",
-            "total_injured_count",
-        ],
-    ].groupby(["school_yishuv_name"])
-
-    df_rank_by_yishuv["rank_in_yishuv"] = (
-        groups["total_injured_count"].rank(method="dense", ascending=False).astype(int)
-    )
-    df_rank_by_yishuv = df_rank_by_yishuv.loc[
-        :,
-        [
-            "school_yishuv_name",
-            "school_id",
-            "school_name",
-            "school_type",
-            "school_longitude",
-            "school_latitude",
-            "rank_in_yishuv",
-        ],
-    ]
-
-    # join df_total_injured and df_rank_by_yishuv with rank by yishuv
-    logging.info("join df_total_injured and df_rank_by_yishuv")
-
-    joined_df = pd.merge(
-        df_total_injured.reset_index(),
-        df_rank_by_yishuv,
-        on=[
-            "school_yishuv_name",
-            "school_id",
-            "school_name",
-            "school_type",
-            "school_longitude",
-            "school_latitude",
-        ],
-        how="left",
-    )
-    joined_df.sort_values(["school_yishuv_name", "rank_in_yishuv"], ascending=True, inplace=True)
-
-    joined_df.columns = [
-        col if type(col) == str else "_".join(map(str, col)) for col in joined_df.columns.values
-    ]
-    for col in ['injured_count_1', 'injured_count_2', 'injured_count_3']:
-        joined_df.loc[:, col] = joined_df.get(col, default=0)
-    joined_df = joined_df.loc[
-        :,
-        [
-            "school_yishuv_name",
-            "school_id",
-            "school_name",
-            "school_type",
-            "school_anyway_link_",
-            "rank_in_yishuv",
-            "school_longitude",
-            "school_latitude",
-            "accident_year_",
-            "injured_count_1",
-            "injured_count_2",
-            "injured_count_3",
-            "total_injured_count_",
-        ],
-    ]
-    joined_df.columns = [
-        "school_yishuv_name",
-        "school_id",
-        "school_name",
-        "school_type",
-        "school_anyway_link",
-        "rank_in_yishuv",
-        "school_longitude",
-        "school_latitude",
-        "accident_year",
-        "killed_count",
-        "severly_injured_count",
-        "light_injured_count",
-        "total_injured_killed_count",
-    ]
-    joined_df["distance_in_km"] = distance
-    joined_df = joined_df.to_dict(orient="records")
-
-    df_total = df_total.to_dict(orient="records")
-    logging.info("return joined_df, df_total")
-    return joined_df, df_total
-
-
-def truncate_injured_around_schools():
-    curr_table = "injured_around_school"
-    sql_truncate = "TRUNCATE TABLE " + curr_table
-    db.session.execute(sql_truncate)
-    db.session.commit()
-    logging.info("Truncated table " + curr_table)
-
-    curr_table = "injured_around_school_all_data"
-    sql_truncate = "TRUNCATE TABLE " + curr_table
-    db.session.execute(sql_truncate)
-    db.session.commit()
-    logging.info("Truncated table " + curr_table)
-
 
 def import_to_datastore(start_date, end_date, distance, batch_size):
-    assert batch_size > 0
-    started = datetime.now()
-    injured_around_schools, df_total = get_injured_around_schools(
-        start_date, end_date, distance
-        )
-    truncate_injured_around_schools()
-    new_items = 0
-    # logging.info(
-    #     "inserting "
-    #     + str(len(injured_around_schools))
-    #     + " new rows about to injured_around_school"
-    # )
-    # for chunk_idx, schools_chunk in enumerate(chunks(injured_around_schools, batch_size)):
-    #     if chunk_idx % 10 == 0:
-    #         logging_chunk = "Chunk idx in injured_around_schools: " + str(chunk_idx)
-    #         logging.info(logging_chunk)
-    #     db.session.bulk_insert_mappings(InjuredAroundSchool, schools_chunk)
-    #     db.session.commit()
-    # logging.info("inserting " + str(len(df_total)) + " new rows injured_around_school_all_data")
-    # for chunk_idx, schools_chunk in enumerate(chunks(df_total, batch_size)):
-    #     if chunk_idx % 10 == 0:
-    #         logging_chunk = "Chunk idx in injured_around_school_all_data: " + str(chunk_idx)
-    #         logging.info(logging_chunk)
-    #     db.session.bulk_insert_mappings(InjuredAroundSchoolAllData, schools_chunk)
-    #     db.session.commit()
-    # new_items += len(injured_around_schools) + len(df_total)
-    # logging.info("\t{0} items in {1}".format(new_items, time_delta(started)))
-    return new_items
-
+    if os.path.exists(SCHOOL_DATA_DIR):
+        shutil.rmtree(SCHOOL_DATA_DIR)
+    os.mkdir(SCHOOL_DATA_DIR)
+    get_injured_around_schools(
+            start_date, end_date, distance
+            )
 
 def parse(start_date, end_date, distance, batch_size):
     started = datetime.now()
